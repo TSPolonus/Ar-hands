@@ -26,36 +26,7 @@ Aplikacja Augmented Reality (AR) do śledzenia dłoni i rozpoznawania gestów w 
 
 ---
 
-## 📱 Jak uruchomić i pobrać na tablet Huawei MatePad 12 X
 
-### SPOSÓB 1: GitHub Pages (Zalecany – 100% darmowy, z bezpiecznym HTTPS)
-Przeglądarki mobilne na tabletach wymagają bezpiecznego połączenia **HTTPS**, aby kamera mogła działać. GitHub Pages daje to za darmo:
-
-1. Wejdź na [github.com](https://github.com) i utwórz nowe repozytorium (np. o nazwie `ar-hands`).
-2. Kliknij **"uploading an existing file"** (lub przeciągnij wszystkie pliki z tego folderu do okna przeglądarki).
-3. Kliknij zielony przycisk **"Commit changes"**.
-4. W repozytorium wejdź w **Settings** (Ustawienia) ➔ z lewego menu wybierz **Pages**.
-5. W sekcji **Branch** wybierz `main` (lub `master`), folder `/ (root)` i kliknij **Save**.
-6. Po 1 minucie otrzymasz link, np.:  
-   `https://twoj-login.github.io/ar-hands/`
-7. Otwórz ten link na tablecie **Huawei MatePad 12 X** w przeglądarce **Huawei Browser** lub Chrome!
-
----
-
-### 📲 Jak zainstalować jako Aplikację na Pulpicie MatePada (PWA)
-Aplikacja została przygotowana jako **Progressive Web App (PWA)**:
-1. Otwórz stronę z aplikacją na tablecie w przeglądarce.
-2. Kliknij ikonę trzech kropek (menu przeglądarki) w prawym górnym rogu.
-3. Wybierz opcję **"Dodaj do ekranu głównego"** (lub **"Zainstaluj aplikację"**).
-4. Na pulpicie Twojego tabletu pojawi się ikonka dłoni **AR Hands**.
-5. Po jej kliknięciu aplikacja otwiera się na pełnym ekranie (bez pasków przeglądarki), działając jak natywna gra z AppGallery!
-
----
-
-### SPOSÓB 2: Uruchomienie lokalne na komputerze (i test przez Wi-Fi)
-1. Uruchom plik `start_app.bat` (lub w terminalu wpisz `node server.js`).
-2. W oknie konsoli pojawi się Twój adres lokalny, np. `http://localhost:3000`.
-3. Możesz od razu przetestować aplikację na kamerze laptopa/komputera.
 
 ---
 
