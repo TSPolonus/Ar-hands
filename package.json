@@ -1,0 +1,12 @@
+{
+  "name": "huawei-matepad-ar-hand-tracker",
+  "version": "1.0.0",
+  "description": "AR Hand Tracking & Mini-Games tailored for Huawei MatePad 12 X and modern touch devices",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["ar", "mediapipe", "hand-tracking", "huawei", "harmonyos", "minigames", "webar"],
+  "author": "",
+  "license": "MIT"
+}

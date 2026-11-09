@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>AR Hand Tracker & Mini-Games | Huawei MatePad 12 X</title>
+  <meta name="description" content="Aplikacja AR do śledzenia dłoni, rozpoznawania gestów i mini-gier w czasie rzeczywistym zoptymalizowana dla Huawei MatePad 12 X">
+  <meta name="theme-color" content="#0a0e17">
+  
+  <!-- PWA & Mobile Web App meta tags -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AR Hands">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%2300f7ff'/><text x='50' y='65' font-size='45' text-anchor='middle'>✋</text></svg>">
+
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- MediaPipe dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="app-container">
+    <!-- Camera Video Element (Hidden or background source) -->
+    <video id="webcam" playsinline autoplay muted></video>
+
+    <!-- AR Overlay Canvas (Full resolution) -->
+    <canvas id="ar-canvas"></canvas>
+
+    <!-- Top Glass HUD -->
+    <header id="top-hud" class="glass-panel">
+      <div class="hud-brand">
+        <span class="logo-badge">HUAWEI AR</span>
+        <span class="title-text">MatePad 12 X • Hand Tracker</span>
+        <span id="fps-badge" class="status-badge">FPS: --</span>
+      </div>
+
+      <div class="hud-stats">
+        <div class="stat-box">
+          <span class="stat-label">Punkty</span>
+          <span id="score-val" class="stat-value">0</span>
+        </div>
+        <div id="lives-box" class="stat-box" style="display: none;">
+          <span class="stat-label">Życia</span>
+          <span id="lives-val" class="stat-lives">❤️❤️❤️</span>
+        </div>
+      </div>
+
+      <div class="hud-actions">
+        <button id="btn-camera" class="btn-icon" title="Przełącz kamerę (przód/tył)">🔄</button>
+        <button id="btn-mirror" class="btn-icon active" title="Lustrzane odbicie">🪞</button>
+        <button id="btn-skeleton" class="btn-icon active" title="Szkielet dłoni AR">🦴</button>
+        <button id="btn-sound" class="btn-icon active" title="Dźwięk ON/OFF">🔊</button>
+        <button id="btn-fullscreen" class="btn-icon" title="Pełny ekran">⛶</button>
+      </div>
+    </header>
+
+    <!-- Bottom Mini-Game Dock -->
+    <nav id="game-dock" class="glass-panel">
+      <button class="game-tab active" data-mode="sandbox">
+        <span class="tab-icon">🖐️</span>
+        <span class="tab-label">Podgląd AR</span>
+      </button>
+      <button class="game-tab" data-mode="slicer">
+        <span class="tab-icon">🍉</span>
+        <span class="tab-label">Fruit Slicer</span>
+      </button>
+      <button class="game-tab" data-mode="bubbles">
+        <span class="tab-icon">🫧</span>
+        <span class="tab-label">Bubble Pop</span>
+      </button>
+      <button class="game-tab" data-mode="stars">
+        <span class="tab-icon">⭐</span>
+        <span class="tab-label">Złap Gwiazdy</span>
+      </button>
+      <button class="game-tab" data-mode="synth">
+        <span class="tab-icon">🎹</span>
+        <span class="tab-label">Cyber Synth</span>
+      </button>
+    </nav>
+
+    <!-- Welcome & Permission Modal -->
+    <div id="modal-overlay">
+      <div class="welcome-card glass-panel">
+        <h1 class="welcome-title">AR HAND TRACKER</h1>
+        <p class="welcome-desc">
+          Zanurz się w rzeczywistości rozszerzonej (AR) na swoim tablecie Huawei! Kamera śledzi każdy staw dłoni w czasie rzeczywistym.
+        </p>
+        <div class="features-list">
+          <div>✨ <strong>21 Punktów Szkieletu</strong> – pełna biomechanika dłoni</div>
+          <div>🤏 <strong>Wykrywanie Gestów</strong> – uszczypnięcie, otwarta dłoń, pięść</div>
+          <div>🎮 <strong>4 Mini-Gry AR</strong> – owoce, bańki, gwiazdy i wirtualny syntezator</div>
+          <div>⚡ <strong>144 Hz Ready</strong> – ultra-płynna animacja na ekranie MatePad</div>
+        </div>
+        <button id="btn-start-app" class="btn-start">URUCHOM KAMERĘ</button>
+        <div id="loading-spinner" class="loader" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App scripts -->
+  <script src="audio.js"></script>
+  <script src="hand-tracker.js"></script>
+  <script src="games.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
