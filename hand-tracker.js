@@ -1,7 +1,6 @@
 /**
- * High-Performance AR Hand Tracker & Biometric Mesh Visualizer
- * Fully optimized for Huawei MatePad 12 X & mobile browsers
- * Uses native getUserMedia and requestAnimationFrame (replaces buggy camera_utils)
+ * AR Hand Tracker & Biometric Mesh Visualizer
+ * Proven Camera Pipeline using MediaPipe Camera helper with lag-free frame dropping
  */
 
 class HandTracker {
@@ -12,19 +11,14 @@ class HandTracker {
     this.onResultsCallback = onResultsCallback;
 
     this.hands = null;
-    this.videoStream = null;
-    this.animFrameId = null;
-    this.isRunning = false;
-    this.isProcessing = false;
-
+    this.camera = null;
     this.isMirrored = true;
     this.facingMode = 'user'; // 'user' (front) or 'environment' (back)
     this.invertHandedness = false;
     this.pointDensity = 'dense'; // 'dense' (56+ points) or 'standard' (21 points)
-    this.performanceMode = 'fast';
-
     this.showSkeleton = true;
     this.showLabels = true;
+    this.isProcessing = false;
 
     this.activeHands = [];
     this.trails = new Map();
@@ -34,17 +28,13 @@ class HandTracker {
   }
 
   async init() {
-    if (typeof Hands === 'undefined') {
-      throw new Error('Biblioteka MediaPipe Hands nie została załadowana. Sprawdź połączenie z internetem.');
-    }
-
     this.hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
     this.hands.setOptions({
       maxNumHands: 2,
-      modelComplexity: 0, // Lite model for ultra-smooth 60+ FPS without mobile lag
+      modelComplexity: 0, // Lite model: blazing fast 60+ FPS without lag
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
@@ -55,98 +45,36 @@ class HandTracker {
   }
 
   async startCamera() {
-    this.stopCamera();
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('Twoja przeglądarka blokuje dostęp do kamery. Upewnij się, że otwierasz stronę przez bezpieczny protokół HTTPS (np. https://tspolonus.github.io/Ar-hands/)!');
+    if (this.camera) {
+      try { await this.camera.stop(); } catch (e) {}
     }
 
-    let stream = null;
+    // Set video attributes for iOS/iPadOS Safari & Android
+    this.video.setAttribute('playsinline', '');
+    this.video.setAttribute('webkit-playsinline', '');
+    this.video.muted = true;
+    this.video.playsInline = true;
+    this.video.autoplay = true;
 
-    // 1. Try mobile-optimized front camera
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: this.facingMode },
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        },
-        audio: false
-      });
-    } catch (e1) {
-      console.warn('Nie udało się z ideal facingMode, próba podstawowa:', e1);
-      try {
-        // 2. Fallback to any available video stream
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false
-        });
-      } catch (e2) {
-        console.error('Brak dostępu do kamery:', e2);
-        throw new Error('Brak uprawnień do kamery! Zezwól przeglądarce na dostęp do kamery w ustawieniach tabletu i odśwież stronę.');
-      }
-    }
-
-    this.videoStream = stream;
-    this.video.srcObject = stream;
-
-    // Play video safely without hanging
-    await new Promise((resolve) => {
-      let resolved = false;
-      const done = () => {
-        if (!resolved) {
-          resolved = true;
-          resolve();
-        }
-      };
-
-      this.video.onloadedmetadata = () => {
-        this.video.play().then(done).catch(done);
-      };
-
-      if (this.video.readyState >= 1) {
-        this.video.play().then(done).catch(done);
-      }
-
-      // Safeguard timeout
-      setTimeout(done, 1500);
-    });
-
-    this.isRunning = true;
-    this.startDetectionLoop();
-  }
-
-  startDetectionLoop() {
-    const loop = async () => {
-      if (!this.isRunning) return;
-
-      if (this.video.readyState >= 2 && !this.isProcessing) {
+    // Use MediaPipe's Camera helper - 100% reliable across mobile and desktop
+    this.camera = new Camera(this.video, {
+      onFrame: async () => {
+        if (this.isProcessing) return; // Drop frame if still computing -> ZERO LAG!
         this.isProcessing = true;
         try {
           await this.hands.send({ image: this.video });
         } catch (err) {
-          // ignore transient frame send errors
+          // Ignore transient frame errors
         } finally {
           this.isProcessing = false;
         }
-      }
+      },
+      facingMode: this.facingMode,
+      width: 1280,
+      height: 720
+    });
 
-      this.animFrameId = requestAnimationFrame(loop);
-    };
-
-    this.animFrameId = requestAnimationFrame(loop);
-  }
-
-  stopCamera() {
-    this.isRunning = false;
-    if (this.animFrameId) {
-      cancelAnimationFrame(this.animFrameId);
-      this.animFrameId = null;
-    }
-    if (this.videoStream) {
-      this.videoStream.getTracks().forEach((track) => track.stop());
-      this.videoStream = null;
-    }
+    await this.camera.start();
   }
 
   async switchCamera() {
@@ -186,7 +114,8 @@ class HandTracker {
       for (let i = 0; i < results.multiHandLandmarks.length; i++) {
         const rawLandmarks = results.multiHandLandmarks[i];
 
-        // Correct Handedness
+        // Correct Handedness:
+        // In selfie/mirrored view, flip so real left hand is 'Left' (Lewa) and right is 'Right' (Prawa)
         let detected = (results.multiHandedness && results.multiHandedness[i])
           ? results.multiHandedness[i].label
           : (i === 0 ? 'Left' : 'Right');
@@ -379,7 +308,7 @@ class HandTracker {
 
     for (const hand of this.activeHands) {
       const lm = hand.landmarks;
-      const isRight = hand.handedness === 'Prawa' || hand.handedness === 'Right';
+      const isRight = hand.handedness === 'Right';
       const mainColor = isRight ? '#00f7ff' : '#ff007f';
       const glowColor = isRight ? 'rgba(0, 247, 255, 0.28)' : 'rgba(255, 0, 127, 0.28)';
 
@@ -408,7 +337,7 @@ class HandTracker {
         }
       }
 
-      // 2. High-Performance Dual-Pass Neon Bones
+      // 2. High-Performance Dual-Pass Neon Bones (No shadowBlur CPU lag)
       ctx.beginPath();
       for (const [start, end] of connections) {
         ctx.moveTo(lm[start].x, lm[start].y);

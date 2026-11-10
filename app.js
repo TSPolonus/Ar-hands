@@ -1,9 +1,6 @@
 /**
- * Universal AR Hand Tracker Controller for iPads, Android, Huawei & PC
+ * Universal AR Hand Tracker Controller for Tablets, iPads & PC
  */
-
-// Global startCameraApp function so it can be triggered from anywhere (inline onclick, buttons, etc.)
-window.startCameraApp = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   const video = document.getElementById('webcam');
@@ -15,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalOverlay = document.getElementById('modal-overlay');
   const btnStart = document.getElementById('btn-start-app');
   const spinner = document.getElementById('loading-spinner');
-  const cameraErrorMsg = document.getElementById('camera-error-msg');
 
   // Control Buttons
   const btnCamera = document.getElementById('btn-camera');
@@ -62,14 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let mpManager = null;
   let isRunning = false;
 
-  // Ensure Video Element has iPad/iOS attributes
-  video.setAttribute('playsinline', '');
-  video.setAttribute('webkit-playsinline', '');
-  video.muted = true;
-  video.playsInline = true;
-  video.autoplay = true;
-
-  // Responsive Canvas Sizing (Supports iPad Retina, MatePad 2.8K, Samsung AMOLED)
+  // Responsive Canvas Sizing
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -86,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     mpManager = new MultiplayerManager(gameEngine);
   } catch (err) {
-    console.warn('Multiplayer initialization notice:', err);
+    console.warn('Multiplayer init notice:', err);
   }
 
   // Setup Multiplayer Callbacks
@@ -175,16 +164,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Universal Bulletproof Camera Starter
-  window.startCameraApp = async function() {
+  // Guaranteed Camera Start
+  async function launchCamera() {
     if (isRunning) return;
 
-    if (btnStart) {
-      btnStart.disabled = true;
-      btnStart.textContent = 'ŁĄCZENIE Z KAMERĄ...';
+    // Immediately hide the modal so the screen is never blocked!
+    if (modalOverlay) {
+      modalOverlay.style.opacity = '0';
+      modalOverlay.style.pointerEvents = 'none';
+      setTimeout(() => {
+        modalOverlay.style.display = 'none';
+      }, 200);
     }
-    if (spinner) spinner.style.display = 'inline-block';
-    if (cameraErrorMsg) cameraErrorMsg.style.display = 'none';
 
     try {
       window.sounds.init();
@@ -192,44 +183,32 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {}
 
     try {
-      tracker = new HandTracker(canvas, video, onHandResults);
+      if (!tracker) {
+        tracker = new HandTracker(canvas, video, onHandResults);
+      }
       await tracker.init();
-
-      modalOverlay.style.opacity = '0';
-      setTimeout(() => {
-        modalOverlay.style.display = 'none';
-      }, 300);
-
       isRunning = true;
     } catch (err) {
-      console.error('Camera startup exception:', err);
-      const msg = err.message || 'Nie udało się uzyskać dostępu do kamery.';
-      if (cameraErrorMsg) {
-        cameraErrorMsg.textContent = '⚠️ ' + msg;
-        cameraErrorMsg.style.display = 'block';
+      console.error('Camera launch error:', err);
+      alert('Nie udało się uzyskać dostępu do kamery:\n' + (err.message || err) + '\n\nUpewnij się, że zezwoliłeś na dostęp do kamery i otwórz stronę przez HTTPS!');
+      if (modalOverlay) {
+        modalOverlay.style.opacity = '1';
+        modalOverlay.style.pointerEvents = 'auto';
+        modalOverlay.style.display = 'flex';
       }
-      if (btnStart) {
-        btnStart.disabled = false;
-        btnStart.textContent = 'SPRÓBUJ PONOWNIE';
-      }
-      if (spinner) spinner.style.display = 'none';
     }
-  };
-
-  // Attach multiple touch and click listeners for 100% responsiveness on all tablets
-  if (btnStart) {
-    btnStart.onclick = window.startCameraApp;
-    btnStart.addEventListener('click', window.startCameraApp);
-    btnStart.addEventListener('pointerdown', (e) => {
-      // Direct pointer initiation
-      window.startCameraApp();
-    });
   }
 
-  // Switch Camera (Front / Back)
+  // Attach launchCamera to Start button
+  if (btnStart) {
+    btnStart.onclick = launchCamera;
+    btnStart.addEventListener('click', launchCamera);
+  }
+
+  // Switch Camera (Also launches camera if not started!)
   btnCamera.addEventListener('click', async () => {
     if (!isRunning) {
-      await window.startCameraApp();
+      await launchCamera();
       return;
     }
     if (!tracker) return;
@@ -285,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSound.textContent = enabled ? '🔊' : '🔇';
   });
 
-  // Toggle Fullscreen (Works on iPadOS, Android, PC)
+  // Toggle Fullscreen (iPad & Android compatible)
   btnFullscreen.addEventListener('click', () => {
     window.sounds.playUiClick();
     try {
@@ -307,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Game Mode Selection (Also starts camera if not started yet!)
+  // Game Mode Selection (Also launches camera if not started!)
   gameTabs.forEach((tab) => {
     tab.addEventListener('click', async () => {
       window.sounds.playUiClick();
@@ -318,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
       gameEngine.setMode(mode);
 
       if (!isRunning) {
-        await window.startCameraApp();
+        await launchCamera();
       }
     });
   });
@@ -406,12 +385,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Register PWA Service Worker
+  // Register PWA Service Worker (Network-First update)
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch((err) => {
-        console.log('SW registration skipped:', err);
-      });
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      // Unregister old service workers to prevent cache locks
+      for (let reg of regs) {
+        reg.update();
+      }
     });
   }
 });
