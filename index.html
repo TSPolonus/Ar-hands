@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>AR Hand Tracker & Mini-Games | Huawei MatePad 12 X</title>
-  <meta name="description" content="Aplikacja AR do śledzenia dłoni, rozpoznawania gestów i mini-gier w czasie rzeczywistym zoptymalizowana dla Huawei MatePad 12 X">
+  <title>AR Hand Tracker & Multiplayer Duel | Huawei MatePad 12 X</title>
+  <meta name="description" content="Aplikacja AR do śledzenia 56+ biometrycznych punktów dłoni, rozpoznawania gestów i pojedynków multiplayer w czasie rzeczywistym">
   <meta name="theme-color" content="#0a0e17">
   
   <!-- PWA & Mobile Web App meta tags -->
@@ -21,20 +21,39 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+  <!-- WebRTC PeerJS for Cross-Network Multiplayer -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
   <div id="app-container">
-    <!-- Camera Video Element (Hidden or background source) -->
+    <!-- Camera Video Element -->
     <video id="webcam" playsinline autoplay muted></video>
 
-    <!-- AR Overlay Canvas (Full resolution) -->
+    <!-- AR Overlay Canvas -->
     <canvas id="ar-canvas"></canvas>
+
+    <!-- Multiplayer Live Duel Bar -->
+    <div id="duel-hud-bar" class="glass-panel" style="display: none;">
+      <div class="duel-player my-side">
+        <span class="player-tag">TY</span>
+        <span id="duel-my-score" class="duel-score">0</span>
+      </div>
+      <div class="duel-timer-box">
+        <span class="duel-vs-text">⚔️ POJEDYNEK ⚔️</span>
+        <span id="duel-timer" class="duel-time">60s</span>
+      </div>
+      <div class="duel-player opp-side">
+        <span class="player-tag">PRZECIWNIK</span>
+        <span id="duel-opp-score" class="duel-score">0</span>
+      </div>
+    </div>
 
     <!-- Top Glass HUD -->
     <header id="top-hud" class="glass-panel">
       <div class="hud-brand">
         <span class="logo-badge">HUAWEI AR</span>
-        <span class="title-text">MatePad 12 X • Hand Tracker</span>
+        <span class="title-text">MatePad 12 X • 56+ Points</span>
         <span id="fps-badge" class="status-badge">FPS: --</span>
       </div>
 
@@ -50,6 +69,9 @@
       </div>
 
       <div class="hud-actions">
+        <button id="btn-multiplayer" class="btn-icon duel-btn" title="Pojedynek Multiplayer przez kod lobby">⚔️</button>
+        <button id="btn-density" class="btn-icon active" title="Przełącz punkty (21 standard vs 56+ biometrycznych)">🔬</button>
+        <button id="btn-swap-hands" class="btn-icon" title="Odwróć strony dłoni (Lewa/Prawa)">✋</button>
         <button id="btn-camera" class="btn-icon" title="Przełącz kamerę (przód/tył)">🔄</button>
         <button id="btn-mirror" class="btn-icon active" title="Lustrzane odbicie">🪞</button>
         <button id="btn-skeleton" class="btn-icon active" title="Szkielet dłoni AR">🦴</button>
@@ -62,7 +84,7 @@
     <nav id="game-dock" class="glass-panel">
       <button class="game-tab active" data-mode="sandbox">
         <span class="tab-icon">🖐️</span>
-        <span class="tab-label">Podgląd AR</span>
+        <span class="tab-label">Podgląd AR (56+)</span>
       </button>
       <button class="game-tab" data-mode="slicer">
         <span class="tab-icon">🍉</span>
@@ -74,7 +96,7 @@
       </button>
       <button class="game-tab" data-mode="stars">
         <span class="tab-icon">⭐</span>
-        <span class="tab-label">Złap Gwiazdy</span>
+        <span class="tab-label">Złap Gwiazdy ✊</span>
       </button>
       <button class="game-tab" data-mode="synth">
         <span class="tab-icon">🎹</span>
@@ -82,21 +104,85 @@
       </button>
     </nav>
 
-    <!-- Welcome & Permission Modal -->
+    <!-- Welcome Modal -->
     <div id="modal-overlay">
       <div class="welcome-card glass-panel">
-        <h1 class="welcome-title">AR HAND TRACKER</h1>
+        <h1 class="welcome-title">AR HAND TRACKER 2.0</h1>
         <p class="welcome-desc">
-          Zanurz się w rzeczywistości rozszerzonej (AR) na swoim tablecie Huawei! Kamera śledzi każdy staw dłoni w czasie rzeczywistym.
+          Zoptymalizowana wersja 60+ FPS dla tabletu Huawei MatePad 12 X z biometryczną siatką i trybem rywalizacji multiplayer!
         </p>
         <div class="features-list">
-          <div>✨ <strong>21 Punktów Szkieletu</strong> – pełna biomechanika dłoni</div>
-          <div>🤏 <strong>Wykrywanie Gestów</strong> – uszczypnięcie, otwarta dłoń, pięść</div>
-          <div>🎮 <strong>4 Mini-Gry AR</strong> – owoce, bańki, gwiazdy i wirtualny syntezator</div>
-          <div>⚡ <strong>144 Hz Ready</strong> – ultra-płynna animacja na ekranie MatePad</div>
+          <div>🔬 <strong>56+ Punktów Biometrycznych</strong> – pełna siatka dłoni i stawów</div>
+          <div>⚔️ <strong>Pojedynki Multiplayer</strong> – graj z kimś z innego Wi-Fi przez kod lobby!</div>
+          <div>✊ <strong>Złap Gwiazdy</strong> – chwytaj gwiazdki zaciskając dłoń w pięść</div>
+          <div>⚡ <strong>Zero Lagów (60+ FPS)</strong> – lekki silnik WebAssembly</div>
         </div>
         <button id="btn-start-app" class="btn-start">URUCHOM KAMERĘ</button>
         <div id="loading-spinner" class="loader" style="display: none;"></div>
+      </div>
+    </div>
+
+    <!-- Multiplayer Lobby Modal -->
+    <div id="multiplayer-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card glass-panel">
+        <div class="modal-header">
+          <h2>⚔️ POJEDYNEK MULTIPLAYER</h2>
+          <button id="btn-close-mp" class="btn-close">✕</button>
+        </div>
+
+        <div class="mp-tabs">
+          <button id="tab-host" class="mp-tab-btn active">STWÓRZ LOBBY</button>
+          <button id="tab-join" class="mp-tab-btn">DOŁĄCZ PRZEZ KOD</button>
+        </div>
+
+        <!-- Host View -->
+        <div id="view-host" class="mp-view">
+          <p class="mp-instruction">Twój kod do lobby (podaj go znajomemu, może być na INNYM Wi-Fi / LTE):</p>
+          <div class="lobby-code-box">
+            <span id="display-room-code" class="room-code-number">----</span>
+            <button id="btn-copy-code" class="btn-small">KOPIUJ KOD</button>
+          </div>
+          
+          <div class="mp-mode-select">
+            <label>Wybierz tryb rywalizacji:</label>
+            <select id="mp-select-game" class="mp-select">
+              <option value="slicer">🍉 Fruit Slicer Duel (60s)</option>
+              <option value="stars">⭐ Złap Gwiazdy w Pięść Duel (60s)</option>
+              <option value="bubbles">🫧 Bubble Pop Rush (60s)</option>
+            </select>
+          </div>
+
+          <div id="host-status" class="status-msg">Oczekiwanie na przeciwnika...</div>
+          <button id="btn-start-duel" class="btn-start mp-start-btn" disabled>ROZPOCZNIJ POJEDYNEK (60s)</button>
+        </div>
+
+        <!-- Join View -->
+        <div id="view-join" class="mp-view" style="display: none;">
+          <p class="mp-instruction">Wpisz 4-cyfrowy kod pokoju od gospodarza:</p>
+          <div class="join-input-group">
+            <input type="text" id="input-room-code" maxlength="4" placeholder="np. 4892" class="code-input">
+            <button id="btn-do-join" class="btn-start mp-start-btn">POŁĄCZ</button>
+          </div>
+          <div id="join-status" class="status-msg">Wpisz kod i kliknij połącz</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Duel End Winner Modal -->
+    <div id="duel-end-modal" class="modal-backdrop" style="display: none;">
+      <div class="modal-card glass-panel text-center">
+        <h1 id="duel-result-title" class="duel-result-headline">🏆 ZWYCIĘSTWO!</h1>
+        <div class="duel-result-scores">
+          <div class="score-card">
+            <span class="label">Twój wynik</span>
+            <span id="duel-final-my" class="number">0</span>
+          </div>
+          <div class="score-card">
+            <span class="label">Przeciwnik</span>
+            <span id="duel-final-opp" class="number">0</span>
+          </div>
+        </div>
+        <button id="btn-close-duel-end" class="btn-start">ZAMKNIJ I WRÓĆ</button>
       </div>
     </div>
   </div>
@@ -105,6 +191,7 @@
   <script src="audio.js"></script>
   <script src="hand-tracker.js"></script>
   <script src="games.js"></script>
+  <script src="multiplayer.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

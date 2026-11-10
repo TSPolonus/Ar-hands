@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ar-hand-tracker-v1';
+const CACHE_NAME = 'ar-hand-tracker-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const ASSETS_TO_CACHE = [
   './audio.js',
   './hand-tracker.js',
   './games.js',
+  './multiplayer.js',
   './manifest.json'
 ];
 
