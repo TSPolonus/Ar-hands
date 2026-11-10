@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>AR Hand Tracker & Multiplayer Duel | Huawei MatePad 12 X</title>
-  <meta name="description" content="Aplikacja AR do śledzenia 56+ biometrycznych punktów dłoni, rozpoznawania gestów i pojedynków multiplayer w czasie rzeczywistym">
+  <title>AR Hand Tracker & Multiplayer | iPad, Android & Huawei</title>
+  <meta name="description" content="Aplikacja AR do śledzenia 56+ biometrycznych punktów dłoni na wszystkich tabletach (iPad, Samsung, Huawei) z grami i pojedynkami multiplayer">
   <meta name="theme-color" content="#0a0e17">
   
-  <!-- PWA & Mobile Web App meta tags -->
+  <!-- PWA & Mobile Web App meta tags (iPad / iOS / Android / HarmonyOS) -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,7 +17,7 @@
 
   <link rel="stylesheet" href="styles.css">
 
-  <!-- MediaPipe dependencies -->
+  <!-- MediaPipe Hands CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
@@ -27,8 +27,8 @@
 </head>
 <body>
   <div id="app-container">
-    <!-- Camera Video Element -->
-    <video id="webcam" playsinline autoplay muted></video>
+    <!-- Camera Video Element (Configured for iOS Safari, iPadOS, Android & HarmonyOS) -->
+    <video id="webcam" playsinline webkit-playsinline autoplay muted></video>
 
     <!-- AR Overlay Canvas -->
     <canvas id="ar-canvas"></canvas>
@@ -52,8 +52,8 @@
     <!-- Top Glass HUD -->
     <header id="top-hud" class="glass-panel">
       <div class="hud-brand">
-        <span class="logo-badge">HUAWEI AR</span>
-        <span class="title-text">MatePad 12 X • 56+ Points</span>
+        <span class="logo-badge">AR HANDS</span>
+        <span class="title-text">Tablet & iPad • 56+ Points</span>
         <span id="fps-badge" class="status-badge">FPS: --</span>
       </div>
 
@@ -107,20 +107,21 @@
     <!-- Welcome Modal -->
     <div id="modal-overlay" class="modal-backdrop">
       <div class="welcome-card glass-panel">
-        <h1 class="welcome-title">AR HAND TRACKER 2.0</h1>
+        <h1 class="welcome-title">AR HAND TRACKER</h1>
         <p class="welcome-desc">
-          Zoptymalizowana wersja dla tabletu Huawei MatePad 12 X z 56+ punktami dłoni i rywalizacją multiplayer!
+          Śledzenie dłoni i mini-gry AR dla tabletów <strong>iPad, Android, Samsung i Huawei</strong>!
         </p>
         <div class="features-list">
-          <div>🔬 <strong>56+ Punktów Biometrycznych</strong> – pełna siatka dłoni i stawów</div>
-          <div>⚔️ <strong>Pojedynki Multiplayer</strong> – graj z kimś z innego Wi-Fi przez kod lobby!</div>
+          <div>🔬 <strong>56+ Punktów Biometrycznych</strong> – pełny szkielet stawów i siatka dłoni</div>
+          <div>⚔️ <strong>Pojedynki Multiplayer</strong> – graj z kimś z innego Wi-Fi przez kod pokoju!</div>
           <div>✊ <strong>Złap Gwiazdy</strong> – chwytaj gwiazdki zaciskając dłoń w pięść</div>
-          <div>⚡ <strong>Zero Lagów (60+ FPS)</strong> – lekki silnik WebAssembly</div>
+          <div>⚡ <strong>60+ FPS na każdym tablecie</strong> – akceleracja WebAssembly</div>
         </div>
         
         <div id="camera-error-msg" class="status-msg" style="display: none; color: #ff3366; margin-bottom: 15px;"></div>
         
-        <button id="btn-start-app" class="btn-start">URUCHOM KAMERĘ</button>
+        <!-- Inline onclick ensures 100% immediate trigger on all mobile touchscreens -->
+        <button id="btn-start-app" class="btn-start" onclick="window.startCameraApp && window.startCameraApp()">URUCHOM KAMERĘ</button>
         <div id="loading-spinner" class="loader" style="display: none;"></div>
       </div>
     </div>
@@ -140,7 +141,7 @@
 
         <!-- Host View -->
         <div id="view-host" class="mp-view">
-          <p class="mp-instruction">Twój kod do lobby (podaj go znajomemu, może być na INNYM Wi-Fi / LTE):</p>
+          <p class="mp-instruction">Twój kod do lobby (podaj go znajomemu na dowolnym tablecie/telefonie):</p>
           <div class="lobby-code-box">
             <span id="display-room-code" class="room-code-number">----</span>
             <button id="btn-copy-code" class="btn-small">KOPIUJ KOD</button>

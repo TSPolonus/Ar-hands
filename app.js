@@ -1,6 +1,9 @@
 /**
- * Main Application Controller for Huawei MatePad 12 X AR Hand Tracker & Multiplayer Duels
+ * Universal AR Hand Tracker Controller for iPads, Android, Huawei & PC
  */
+
+// Global startCameraApp function so it can be triggered from anywhere (inline onclick, buttons, etc.)
+window.startCameraApp = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   const video = document.getElementById('webcam');
@@ -59,7 +62,14 @@ document.addEventListener('DOMContentLoaded', () => {
   let mpManager = null;
   let isRunning = false;
 
-  // Responsive Canvas Sizing (Huawei MatePad 12 X)
+  // Ensure Video Element has iPad/iOS attributes
+  video.setAttribute('playsinline', '');
+  video.setAttribute('webkit-playsinline', '');
+  video.muted = true;
+  video.playsInline = true;
+  video.autoplay = true;
+
+  // Responsive Canvas Sizing (Supports iPad Retina, MatePad 2.8K, Samsung AMOLED)
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -76,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
   try {
     mpManager = new MultiplayerManager(gameEngine);
   } catch (err) {
-    console.warn('Multiplayer initialization deferred:', err);
+    console.warn('Multiplayer initialization notice:', err);
   }
 
   // Setup Multiplayer Callbacks
@@ -165,19 +175,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Start Camera and Tracking (Bulletproof Click Handler)
-  async function handleStartCamera() {
-    btnStart.disabled = true;
-    btnStart.textContent = 'ŁĄCZENIE Z KAMERĄ...';
-    spinner.style.display = 'inline-block';
-    cameraErrorMsg.style.display = 'none';
+  // Universal Bulletproof Camera Starter
+  window.startCameraApp = async function() {
+    if (isRunning) return;
+
+    if (btnStart) {
+      btnStart.disabled = true;
+      btnStart.textContent = 'ŁĄCZENIE Z KAMERĄ...';
+    }
+    if (spinner) spinner.style.display = 'inline-block';
+    if (cameraErrorMsg) cameraErrorMsg.style.display = 'none';
 
     try {
       window.sounds.init();
       window.sounds.playPop(750);
-    } catch (e) {
-      console.warn('Audio start note:', e);
-    }
+    } catch (e) {}
 
     try {
       tracker = new HandTracker(canvas, video, onHandResults);
@@ -186,29 +198,40 @@ document.addEventListener('DOMContentLoaded', () => {
       modalOverlay.style.opacity = '0';
       setTimeout(() => {
         modalOverlay.style.display = 'none';
-      }, 350);
+      }, 300);
 
       isRunning = true;
     } catch (err) {
-      console.error('Błąd uruchomienia kamery:', err);
-      const errorText = err.message || 'Nie udało się połączyć z kamerą.';
-      cameraErrorMsg.textContent = '⚠️ ' + errorText;
-      cameraErrorMsg.style.display = 'block';
-
-      btnStart.disabled = false;
-      btnStart.textContent = 'SPRÓBUJ PONOWNIE';
-      spinner.style.display = 'none';
+      console.error('Camera startup exception:', err);
+      const msg = err.message || 'Nie udało się uzyskać dostępu do kamery.';
+      if (cameraErrorMsg) {
+        cameraErrorMsg.textContent = '⚠️ ' + msg;
+        cameraErrorMsg.style.display = 'block';
+      }
+      if (btnStart) {
+        btnStart.disabled = false;
+        btnStart.textContent = 'SPRÓBUJ PONOWNIE';
+      }
+      if (spinner) spinner.style.display = 'none';
     }
-  }
+  };
 
-  btnStart.addEventListener('click', handleStartCamera);
-  btnStart.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    handleStartCamera();
-  });
+  // Attach multiple touch and click listeners for 100% responsiveness on all tablets
+  if (btnStart) {
+    btnStart.onclick = window.startCameraApp;
+    btnStart.addEventListener('click', window.startCameraApp);
+    btnStart.addEventListener('pointerdown', (e) => {
+      // Direct pointer initiation
+      window.startCameraApp();
+    });
+  }
 
   // Switch Camera (Front / Back)
   btnCamera.addEventListener('click', async () => {
+    if (!isRunning) {
+      await window.startCameraApp();
+      return;
+    }
     if (!tracker) return;
     window.sounds.playUiClick();
     const mode = await tracker.switchCamera();
@@ -262,25 +285,41 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSound.textContent = enabled ? '🔊' : '🔇';
   });
 
-  // Toggle Fullscreen
+  // Toggle Fullscreen (Works on iPadOS, Android, PC)
   btnFullscreen.addEventListener('click', () => {
     window.sounds.playUiClick();
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
+    try {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else if (document.documentElement.webkitRequestFullscreen) {
+          document.documentElement.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+      }
+    } catch (e) {
+      console.warn('Fullscreen unavailable:', e);
     }
   });
 
-  // Game Mode Selection
+  // Game Mode Selection (Also starts camera if not started yet!)
   gameTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
+    tab.addEventListener('click', async () => {
       window.sounds.playUiClick();
       gameTabs.forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
 
       const mode = tab.dataset.mode;
       gameEngine.setMode(mode);
+
+      if (!isRunning) {
+        await window.startCameraApp();
+      }
     });
   });
 
