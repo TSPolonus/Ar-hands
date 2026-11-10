@@ -1,6 +1,6 @@
 /**
  * WebRTC P2P Multiplayer Engine for AR Hand Tracking Duel
- * Connects players across DIFFERENT Wi-Fi networks / LTE / Internet via free WebRTC signaling (PeerJS).
+ * Connects players across DIFFERENT Wi-Fi networks / LTE / Internet via WebRTC (PeerJS).
  */
 
 class MultiplayerManager {
@@ -18,8 +18,8 @@ class MultiplayerManager {
     this.duelTimer = null;
     this.myScore = 0;
     this.opponentScore = 0;
-    this.opponentHand = null; // { x, y, gesture, isSlicing, isFist }
-    this.selectedGameMode = 'slicer'; // 'slicer' | 'stars' | 'bubbles'
+    this.opponentHand = null;
+    this.selectedGameMode = 'slicer';
 
     // Callbacks for UI
     this.onStatusChange = null;
@@ -34,89 +34,105 @@ class MultiplayerManager {
 
   // Create Lobby (Host)
   createLobby(customCode = null) {
+    if (typeof Peer === 'undefined') {
+      if (this.onStatusChange) {
+        this.onStatusChange('error', 'Biblioteka PeerJS nie załadowała się. Sprawdź połączenie z internetem.');
+      }
+      return;
+    }
+
     this.roomCode = customCode || this.generateCode();
     this.isHost = true;
     const peerId = `ar-hand-duel-${this.roomCode}`;
 
     if (this.peer) {
-      this.peer.destroy();
+      try { this.peer.destroy(); } catch (e) {}
     }
 
-    this.peer = new Peer(peerId, {
-      debug: 1,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' }
-        ]
-      }
-    });
+    try {
+      this.peer = new Peer(peerId, {
+        debug: 1,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      });
 
-    this.peer.on('open', (id) => {
-      console.log('Multiplayer Host Peer otwarty z kodem:', this.roomCode);
-      if (this.onStatusChange) {
-        this.onStatusChange('waiting_for_player', this.roomCode);
-      }
-    });
+      this.peer.on('open', (id) => {
+        if (this.onStatusChange) {
+          this.onStatusChange('waiting_for_player', this.roomCode);
+        }
+      });
 
-    this.peer.on('connection', (connection) => {
-      this.conn = connection;
-      this.setupConnection();
-    });
+      this.peer.on('connection', (connection) => {
+        this.conn = connection;
+        this.setupConnection();
+      });
 
-    this.peer.on('error', (err) => {
-      console.warn('Peer error:', err);
-      if (err.type === 'unavailable-id') {
-        // Room code already taken, generate new one
-        this.createLobby();
-      } else {
-        if (this.onStatusChange) this.onStatusChange('error', err.message);
-      }
-    });
+      this.peer.on('error', (err) => {
+        console.warn('Peer error:', err);
+        if (err.type === 'unavailable-id') {
+          this.createLobby();
+        } else {
+          if (this.onStatusChange) this.onStatusChange('error', 'Błąd: ' + (err.message || err.type));
+        }
+      });
+    } catch (err) {
+      if (this.onStatusChange) this.onStatusChange('error', 'Nie udało się utworzyć lobby: ' + err.message);
+    }
   }
 
   // Join Lobby (Guest)
   joinLobby(roomCode) {
+    if (typeof Peer === 'undefined') {
+      if (this.onStatusChange) {
+        this.onStatusChange('error', 'Biblioteka PeerJS nie załadowała się. Sprawdź połączenie z internetem.');
+      }
+      return;
+    }
+
     this.roomCode = roomCode.trim().toUpperCase();
     this.isHost = false;
     const targetPeerId = `ar-hand-duel-${this.roomCode}`;
 
     if (this.peer) {
-      this.peer.destroy();
+      try { this.peer.destroy(); } catch (e) {}
     }
 
-    // Guest gets random peer id
-    this.peer = new Peer({
-      debug: 1,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:global.stun.twilio.com:3478' }
-        ]
-      }
-    });
+    try {
+      this.peer = new Peer({
+        debug: 1,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      });
 
-    this.peer.on('open', () => {
-      if (this.onStatusChange) this.onStatusChange('connecting', this.roomCode);
-      this.conn = this.peer.connect(targetPeerId, { reliable: true });
-      this.setupConnection();
-    });
+      this.peer.on('open', () => {
+        if (this.onStatusChange) this.onStatusChange('connecting', this.roomCode);
+        this.conn = this.peer.connect(targetPeerId, { reliable: true });
+        this.setupConnection();
+      });
 
-    this.peer.on('error', (err) => {
-      console.warn('Guest peer error:', err);
-      if (this.onStatusChange) this.onStatusChange('error', 'Nie udało się połączyć z kodem ' + this.roomCode);
-    });
+      this.peer.on('error', (err) => {
+        console.warn('Guest peer error:', err);
+        if (this.onStatusChange) this.onStatusChange('error', 'Nie udało się połączyć z kodem ' + this.roomCode);
+      });
+    } catch (err) {
+      if (this.onStatusChange) this.onStatusChange('error', 'Błąd połączenia: ' + err.message);
+    }
   }
 
   setupConnection() {
     this.conn.on('open', () => {
       this.isConnected = true;
-      console.log('WebRTC P2P Połączono z przeciwnikiem!');
       if (this.onStatusChange) {
         this.onStatusChange('connected', this.roomCode);
       }
-
-      // Send initial handshake
       this.sendData({ type: 'handshake', isHost: this.isHost });
     });
 
@@ -143,7 +159,6 @@ class MultiplayerManager {
     }
   }
 
-  // Host starts the duel
   startDuel(gameMode = 'slicer') {
     if (!this.isConnected) return;
     this.selectedGameMode = gameMode;
@@ -191,7 +206,6 @@ class MultiplayerManager {
     clearInterval(this.duelTimer);
     this.isDuelActive = false;
 
-    // Send final score
     this.sendData({
       type: 'duel_finish',
       finalScore: this.myScore
@@ -246,11 +260,9 @@ class MultiplayerManager {
     }
   }
 
-  // Transmit local hand position and score to opponent
   syncHand(activeHand) {
     if (!this.isConnected || !this.isDuelActive || !activeHand) return;
 
-    // Normalize coordinates (0..1) so different screen sizes match perfectly!
     const canvas = this.gameEngine.canvas;
     const handData = {
       x: activeHand.indexTip.x / canvas.width,
@@ -267,7 +279,6 @@ class MultiplayerManager {
       hand: handData
     });
 
-    // Also update my score if changed
     if (this.myScore !== this.gameEngine.score) {
       this.myScore = this.gameEngine.score;
       this.sendData({
@@ -279,8 +290,12 @@ class MultiplayerManager {
 
   disconnect() {
     if (this.duelTimer) clearInterval(this.duelTimer);
-    if (this.conn) this.conn.close();
-    if (this.peer) this.peer.destroy();
+    if (this.conn) {
+      try { this.conn.close(); } catch (e) {}
+    }
+    if (this.peer) {
+      try { this.peer.destroy(); } catch (e) {}
+    }
     this.isConnected = false;
     this.isDuelActive = false;
   }

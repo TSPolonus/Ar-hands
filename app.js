@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalOverlay = document.getElementById('modal-overlay');
   const btnStart = document.getElementById('btn-start-app');
   const spinner = document.getElementById('loading-spinner');
+  const cameraErrorMsg = document.getElementById('camera-error-msg');
 
   // Control Buttons
   const btnCamera = document.getElementById('btn-camera');
@@ -58,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let mpManager = null;
   let isRunning = false;
 
-  // Responsive Canvas Sizing (Huawei MatePad 12 X 2.8K display)
+  // Responsive Canvas Sizing (Huawei MatePad 12 X)
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -70,67 +71,73 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
 
-  // Initialize Game & Multiplayer Engines
+  // Initialize Game & Multiplayer Engines safely
   gameEngine = new ARGameEngine(canvas);
-  mpManager = new MultiplayerManager(gameEngine);
+  try {
+    mpManager = new MultiplayerManager(gameEngine);
+  } catch (err) {
+    console.warn('Multiplayer initialization deferred:', err);
+  }
 
   // Setup Multiplayer Callbacks
-  mpManager.onStatusChange = (status, code) => {
-    if (status === 'waiting_for_player') {
-      displayRoomCode.textContent = code;
-      hostStatus.textContent = '🟢 Lobby aktywne! Czekam na przeciwnika...';
-      btnStartDuel.disabled = true;
-    } else if (status === 'connecting') {
-      joinStatus.textContent = '🟡 Łączenie z lobby ' + code + '...';
-    } else if (status === 'connected') {
-      hostStatus.textContent = '🟢 Przeciwnik połączony! Możesz zacząć!';
-      joinStatus.textContent = '🟢 Połączono z gospodarzem!';
-      btnStartDuel.disabled = false;
-      window.sounds.playPop(800);
-    } else if (status === 'disconnected') {
-      hostStatus.textContent = '🔴 Przeciwnik rozłączony';
-      joinStatus.textContent = '🔴 Połączenie utracone';
-      btnStartDuel.disabled = true;
+  if (mpManager) {
+    mpManager.onStatusChange = (status, code) => {
+      if (status === 'waiting_for_player') {
+        displayRoomCode.textContent = code;
+        hostStatus.textContent = '🟢 Lobby aktywne! Czekam na przeciwnika...';
+        btnStartDuel.disabled = true;
+      } else if (status === 'connecting') {
+        joinStatus.textContent = '🟡 Łączenie z lobby ' + code + '...';
+      } else if (status === 'connected') {
+        hostStatus.textContent = '🟢 Przeciwnik połączony! Możesz zacząć!';
+        joinStatus.textContent = '🟢 Połączono z gospodarzem!';
+        btnStartDuel.disabled = false;
+        window.sounds.playPop(800);
+      } else if (status === 'disconnected') {
+        hostStatus.textContent = '🔴 Przeciwnik rozłączony';
+        joinStatus.textContent = '🔴 Połączenie utracone';
+        btnStartDuel.disabled = true;
+        duelHudBar.style.display = 'none';
+      } else if (status === 'error') {
+        hostStatus.textContent = '⚠️ ' + code;
+        joinStatus.textContent = '⚠️ ' + code;
+      }
+    };
+
+    mpManager.onScoreUpdate = (stats) => {
+      duelHudBar.style.display = 'flex';
+      duelMyScore.textContent = stats.myScore;
+      duelOppScore.textContent = stats.opponentScore;
+      duelTimer.textContent = stats.timeLeft + 's';
+    };
+
+    mpManager.onOpponentHand = (handData) => {
+      gameEngine.setOpponentHand(handData);
+    };
+
+    mpManager.onDuelEnd = (results) => {
       duelHudBar.style.display = 'none';
-    } else if (status === 'error') {
-      hostStatus.textContent = '⚠️ ' + code;
-      joinStatus.textContent = '⚠️ ' + code;
-    }
-  };
+      gameEngine.setOpponentHand(null);
 
-  mpManager.onScoreUpdate = (stats) => {
-    duelHudBar.style.display = 'flex';
-    duelMyScore.textContent = stats.myScore;
-    duelOppScore.textContent = stats.opponentScore;
-    duelTimer.textContent = stats.timeLeft + 's';
-  };
+      duelFinalMy.textContent = results.myScore;
+      duelFinalOpp.textContent = results.opponentScore;
 
-  mpManager.onOpponentHand = (handData) => {
-    gameEngine.setOpponentHand(handData);
-  };
+      if (results.result === 'win') {
+        duelResultTitle.textContent = '🏆 ZWYCIĘSTWO!';
+        duelResultTitle.style.color = '#00f7ff';
+        window.sounds.playStarChime(4);
+      } else if (results.result === 'lose') {
+        duelResultTitle.textContent = '💀 PRZEGRANA!';
+        duelResultTitle.style.color = '#ff3366';
+        window.sounds.playExplosion();
+      } else {
+        duelResultTitle.textContent = '🤝 REMIS!';
+        duelResultTitle.style.color = '#ffd700';
+      }
 
-  mpManager.onDuelEnd = (results) => {
-    duelHudBar.style.display = 'none';
-    gameEngine.setOpponentHand(null);
-
-    duelFinalMy.textContent = results.myScore;
-    duelFinalOpp.textContent = results.opponentScore;
-
-    if (results.result === 'win') {
-      duelResultTitle.textContent = '🏆 ZWYCIĘSTWO!';
-      duelResultTitle.style.color = '#00f7ff';
-      window.sounds.playStarChime(4);
-    } else if (results.result === 'lose') {
-      duelResultTitle.textContent = '💀 PRZEGRANA!';
-      duelResultTitle.style.color = '#ff3366';
-      window.sounds.playExplosion();
-    } else {
-      duelResultTitle.textContent = '🤝 REMIS!';
-      duelResultTitle.style.color = '#ffd700';
-    }
-
-    duelEndModal.style.display = 'flex';
-  };
+      duelEndModal.style.display = 'flex';
+    };
+  }
 
   // Results callback from Hand Tracker
   function onHandResults(activeHands) {
@@ -141,15 +148,12 @@ document.addEventListener('DOMContentLoaded', () => {
       fpsBadge.textContent = `FPS: ${tracker.fps}`;
     }
 
-    // Update Game State
     gameEngine.updateAndRender(activeHands);
 
-    // Sync hand data with opponent in Multiplayer
-    if (activeHands.length > 0 && mpManager.isDuelActive) {
+    if (activeHands.length > 0 && mpManager && mpManager.isDuelActive) {
       mpManager.syncHand(activeHands[0]);
     }
 
-    // Update HUD Stats
     scoreVal.textContent = gameEngine.score;
     if (gameEngine.currentMode === 'slicer') {
       livesBox.style.display = 'flex';
@@ -161,13 +165,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Start Camera and Tracking
-  btnStart.addEventListener('click', async () => {
-    btnStart.style.display = 'none';
+  // Start Camera and Tracking (Bulletproof Click Handler)
+  async function handleStartCamera() {
+    btnStart.disabled = true;
+    btnStart.textContent = 'ŁĄCZENIE Z KAMERĄ...';
     spinner.style.display = 'inline-block';
+    cameraErrorMsg.style.display = 'none';
 
-    window.sounds.init();
-    window.sounds.playPop(750);
+    try {
+      window.sounds.init();
+      window.sounds.playPop(750);
+    } catch (e) {
+      console.warn('Audio start note:', e);
+    }
 
     try {
       tracker = new HandTracker(canvas, video, onHandResults);
@@ -176,15 +186,25 @@ document.addEventListener('DOMContentLoaded', () => {
       modalOverlay.style.opacity = '0';
       setTimeout(() => {
         modalOverlay.style.display = 'none';
-      }, 400);
+      }, 350);
 
       isRunning = true;
     } catch (err) {
-      console.error('Camera initialization error:', err);
-      alert('Nie udało się uzyskać dostępu do kamery. Upewnij się, że zezwoliłeś przeglądarce na dostęp do kamery lub otwórz stronę przez protokół HTTPS!');
-      btnStart.style.display = 'inline-block';
+      console.error('Błąd uruchomienia kamery:', err);
+      const errorText = err.message || 'Nie udało się połączyć z kamerą.';
+      cameraErrorMsg.textContent = '⚠️ ' + errorText;
+      cameraErrorMsg.style.display = 'block';
+
+      btnStart.disabled = false;
+      btnStart.textContent = 'SPRÓBUJ PONOWNIE';
       spinner.style.display = 'none';
     }
+  }
+
+  btnStart.addEventListener('click', handleStartCamera);
+  btnStart.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    handleStartCamera();
   });
 
   // Switch Camera (Front / Back)
@@ -216,7 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.sounds.playUiClick();
     const isInverted = tracker.toggleHandInversion();
     btnSwapHands.classList.toggle('active', isInverted);
-    btnSwapHands.title = isInverted ? 'Odwrócono strony dłoni (Aktywne)' : 'Odwróć strony dłoni (Lewa/Prawa)';
   });
 
   // Toggle Point Density (21 Standard vs 56+ Biometric)
@@ -224,9 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!tracker) return;
     window.sounds.playUiClick();
     const density = tracker.togglePointDensity();
-    const isDense = density === 'dense';
-    btnDensity.classList.toggle('active', isDense);
-    btnDensity.title = isDense ? 'Biometryczna siatka 56+ punktów (Włączona)' : 'Standardowe 21 punktów';
+    btnDensity.classList.toggle('active', density === 'dense');
   });
 
   // Toggle Skeleton
@@ -271,8 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnMultiplayer.addEventListener('click', () => {
     window.sounds.playUiClick();
     mpModal.style.display = 'flex';
-    // Auto-create lobby if not host yet
-    if (!mpManager.isHost && !mpManager.isConnected) {
+    if (mpManager && !mpManager.isHost && !mpManager.isConnected) {
       mpManager.createLobby();
     }
   });
@@ -287,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     tabJoin.classList.remove('active');
     viewHost.style.display = 'block';
     viewJoin.style.display = 'none';
-    if (!mpManager.isHost && !mpManager.isConnected) {
+    if (mpManager && !mpManager.isHost && !mpManager.isConnected) {
       mpManager.createLobby();
     }
   });
@@ -300,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnCopyCode.addEventListener('click', () => {
-    if (mpManager.roomCode) {
+    if (mpManager && mpManager.roomCode) {
       navigator.clipboard.writeText(mpManager.roomCode).then(() => {
         btnCopyCode.textContent = 'SKOPIOWANO! ✓';
         setTimeout(() => { btnCopyCode.textContent = 'KOPIUJ KOD'; }, 2000);
@@ -311,7 +327,9 @@ document.addEventListener('DOMContentLoaded', () => {
   btnStartDuel.addEventListener('click', () => {
     window.sounds.playPop(900);
     const selectedMode = mpSelectGame.value;
-    mpManager.startDuel(selectedMode);
+    if (mpManager) {
+      mpManager.startDuel(selectedMode);
+    }
     mpModal.style.display = 'none';
   });
 
@@ -319,9 +337,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const code = inputRoomCode.value.trim();
     if (code.length >= 4) {
       window.sounds.playUiClick();
-      mpManager.joinLobby(code);
+      if (mpManager) {
+        mpManager.joinLobby(code);
+      }
       setTimeout(() => {
-        if (mpManager.isConnected) {
+        if (mpManager && mpManager.isConnected) {
           mpModal.style.display = 'none';
         }
       }, 1500);
@@ -342,7 +362,9 @@ document.addEventListener('DOMContentLoaded', () => {
     mpModal.style.display = 'flex';
     tabJoin.click();
     inputRoomCode.value = roomParam;
-    mpManager.joinLobby(roomParam);
+    if (mpManager) {
+      mpManager.joinLobby(roomParam);
+    }
   }
 
   // Register PWA Service Worker

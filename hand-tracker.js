@@ -1,12 +1,7 @@
 /**
  * High-Performance AR Hand Tracker & Biometric Mesh Visualizer
- * Fully optimized for Huawei MatePad 12 X (144Hz) & Mobile WebGL
- * Supports:
- * - Ultra-fast 60+ FPS zero-lag processing
- * - Inverted handedness correction (Prawa / Lewa)
- * - 56+ Biometric tracking nodes (interpolated bones, palm webbing, fingertip auras)
- * - Cybernetic palm wireframe mesh
- * - Instant Fist / Grab detection for mini-games
+ * Fully optimized for Huawei MatePad 12 X & mobile browsers
+ * Uses native getUserMedia and requestAnimationFrame (replaces buggy camera_utils)
  */
 
 class HandTracker {
@@ -17,15 +12,19 @@ class HandTracker {
     this.onResultsCallback = onResultsCallback;
 
     this.hands = null;
-    this.camera = null;
+    this.videoStream = null;
+    this.animFrameId = null;
+    this.isRunning = false;
+    this.isProcessing = false;
+
     this.isMirrored = true;
     this.facingMode = 'user'; // 'user' (front) or 'environment' (back)
-    this.invertHandedness = false; // toggle if user wants manual swap
+    this.invertHandedness = false;
     this.pointDensity = 'dense'; // 'dense' (56+ points) or 'standard' (21 points)
-    this.performanceMode = 'fast'; // 'fast' (60 FPS Lite) or 'accurate'
+    this.performanceMode = 'fast';
+
     this.showSkeleton = true;
     this.showLabels = true;
-    this.isProcessing = false; // Prevents frame backlog / lag
 
     this.activeHands = [];
     this.trails = new Map();
@@ -35,14 +34,17 @@ class HandTracker {
   }
 
   async init() {
+    if (typeof Hands === 'undefined') {
+      throw new Error('Biblioteka MediaPipe Hands nie została załadowana. Sprawdź połączenie z internetem.');
+    }
+
     this.hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
-    // Model complexity 0 (Lite) runs at smooth 60 FPS on mobile/HarmonyOS without stutter!
     this.hands.setOptions({
       maxNumHands: 2,
-      modelComplexity: this.performanceMode === 'fast' ? 0 : 1,
+      modelComplexity: 0, // Lite model for ultra-smooth 60+ FPS without mobile lag
       minDetectionConfidence: 0.5,
       minTrackingConfidence: 0.5
     });
@@ -53,64 +55,97 @@ class HandTracker {
   }
 
   async startCamera() {
-    if (this.camera) {
-      await this.camera.stop();
+    this.stopCamera();
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('Twoja przeglądarka blokuje dostęp do kamery. Upewnij się, że otwierasz stronę przez bezpieczny protokół HTTPS (np. https://tspolonus.github.io/Ar-hands/)!');
     }
 
-    // High quality display, optimized ML processing resolution (640x480) for instant zero-lag tracking!
-    const constraints = {
-      video: {
-        facingMode: this.facingMode,
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
-        frameRate: { ideal: 60, min: 30 }
-      },
-      audio: false
+    let stream = null;
+
+    // 1. Try mobile-optimized front camera
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: this.facingMode },
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
+        audio: false
+      });
+    } catch (e1) {
+      console.warn('Nie udało się z ideal facingMode, próba podstawowa:', e1);
+      try {
+        // 2. Fallback to any available video stream
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      } catch (e2) {
+        console.error('Brak dostępu do kamery:', e2);
+        throw new Error('Brak uprawnień do kamery! Zezwól przeglądarce na dostęp do kamery w ustawieniach tabletu i odśwież stronę.');
+      }
+    }
+
+    this.videoStream = stream;
+    this.video.srcObject = stream;
+
+    // Play video safely without hanging
+    await new Promise((resolve) => {
+      let resolved = false;
+      const done = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+
+      this.video.onloadedmetadata = () => {
+        this.video.play().then(done).catch(done);
+      };
+
+      if (this.video.readyState >= 1) {
+        this.video.play().then(done).catch(done);
+      }
+
+      // Safeguard timeout
+      setTimeout(done, 1500);
+    });
+
+    this.isRunning = true;
+    this.startDetectionLoop();
+  }
+
+  startDetectionLoop() {
+    const loop = async () => {
+      if (!this.isRunning) return;
+
+      if (this.video.readyState >= 2 && !this.isProcessing) {
+        this.isProcessing = true;
+        try {
+          await this.hands.send({ image: this.video });
+        } catch (err) {
+          // ignore transient frame send errors
+        } finally {
+          this.isProcessing = false;
+        }
+      }
+
+      this.animFrameId = requestAnimationFrame(loop);
     };
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.video.srcObject = stream;
-      await new Promise((resolve) => {
-        this.video.onloadedmetadata = () => {
-          this.video.play();
-          resolve();
-        };
-      });
+    this.animFrameId = requestAnimationFrame(loop);
+  }
 
-      this.camera = new Camera(this.video, {
-        onFrame: async () => {
-          if (this.isProcessing) return; // Drop frame if previous is still computing to eliminate lag!
-          this.isProcessing = true;
-          try {
-            await this.hands.send({ image: this.video });
-          } catch (err) {
-            console.warn('Frame send error:', err);
-          } finally {
-            this.isProcessing = false;
-          }
-        },
-        width: 640,
-        height: 480
-      });
-
-      await this.camera.start();
-    } catch (err) {
-      console.warn('Fallback standard camera initialization:', err);
-      this.camera = new Camera(this.video, {
-        onFrame: async () => {
-          if (this.isProcessing) return;
-          this.isProcessing = true;
-          try {
-            await this.hands.send({ image: this.video });
-          } finally {
-            this.isProcessing = false;
-          }
-        },
-        width: 640,
-        height: 480
-      });
-      await this.camera.start();
+  stopCamera() {
+    this.isRunning = false;
+    if (this.animFrameId) {
+      cancelAnimationFrame(this.animFrameId);
+      this.animFrameId = null;
+    }
+    if (this.videoStream) {
+      this.videoStream.getTracks().forEach((track) => track.stop());
+      this.videoStream = null;
     }
   }
 
@@ -136,15 +171,6 @@ class HandTracker {
     return this.pointDensity;
   }
 
-  setPerformanceMode(mode) {
-    this.performanceMode = mode;
-    if (this.hands) {
-      this.hands.setOptions({
-        modelComplexity: mode === 'fast' ? 0 : 1
-      });
-    }
-  }
-
   handleResults(results) {
     const now = performance.now();
     this.frameCount++;
@@ -159,11 +185,8 @@ class HandTracker {
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       for (let i = 0; i < results.multiHandLandmarks.length; i++) {
         const rawLandmarks = results.multiHandLandmarks[i];
-        
-        // Correct Handedness:
-        // MediaPipe assumes unmirrored view from viewer.
-        // In selfie/mirror mode on camera, MediaPipe returns 'Left' for user's Right hand, and 'Right' for user's Left hand.
-        // We flip it so the user's real left hand is 'Lewa' and right hand is 'Prawa'!
+
+        // Correct Handedness
         let detected = (results.multiHandedness && results.multiHandedness[i])
           ? results.multiHandedness[i].label
           : (i === 0 ? 'Left' : 'Right');
@@ -173,7 +196,6 @@ class HandTracker {
           handedness = (handedness === 'Right') ? 'Left' : 'Right';
         }
 
-        // Map landmarks to canvas coordinates taking mirror into account
         const landmarks = rawLandmarks.map((pt, idx) => {
           const x = this.isMirrored ? (1 - pt.x) * this.canvas.width : pt.x * this.canvas.width;
           const y = pt.y * this.canvas.height;
@@ -181,7 +203,7 @@ class HandTracker {
           return { x, y, z, id: idx };
         });
 
-        // Compute 56+ Biometric Nodes (Midpoints, Palm Webbing, Fingertip Auras)
+        // Compute 56+ Biometric Nodes
         const biometricNodes = this.computeBiometricNodes(landmarks);
 
         // Compute Gestures & Palm Data
@@ -220,11 +242,8 @@ class HandTracker {
     }
   }
 
-  // Generate 56+ detailed biometric tracking nodes
   computeBiometricNodes(lm) {
     const nodes = [];
-
-    // 1. Mid-segment bone points (21 midpoints)
     const bones = [
       [0, 1], [1, 2], [2, 3], [3, 4],
       [0, 5], [5, 6], [6, 7], [7, 8],
@@ -245,14 +264,12 @@ class HandTracker {
       });
     }
 
-    // 2. Palm Webbing & Surface Nodes (9 nodes)
-    // Webbing between fingers
+    // Webbing & palm mounds
     const webThumbIndex = { x: (lm[2].x + lm[5].x) / 2, y: (lm[2].y + lm[5].y) / 2, type: 'webbing' };
     const webIndexMid = { x: (lm[5].x + lm[9].x) / 2, y: (lm[5].y + lm[9].y) / 2, type: 'webbing' };
     const webMidRing = { x: (lm[9].x + lm[13].x) / 2, y: (lm[9].y + lm[13].y) / 2, type: 'webbing' };
     const webRingPinky = { x: (lm[13].x + lm[17].x) / 2, y: (lm[13].y + lm[17].y) / 2, type: 'webbing' };
 
-    // Palm core & muscle mounds
     const thenar = { x: (lm[1].x + lm[2].x + lm[0].x) / 3, y: (lm[1].y + lm[2].y + lm[0].y) / 3, type: 'muscle' };
     const hypothenar = { x: (lm[17].x + lm[0].x) / 2, y: (lm[17].y + lm[0].y) / 2, type: 'muscle' };
     const palmCenter = this.getPalmCenter(lm);
@@ -261,7 +278,7 @@ class HandTracker {
 
     nodes.push(webThumbIndex, webIndexMid, webMidRing, webRingPinky, thenar, hypothenar, palmCenter, upperPalm, lowerPalm);
 
-    // 3. Fingertip Auras / Outer Nodes (5 nodes extending beyond tips)
+    // Fingertip auras
     const tipPairs = [[3, 4], [7, 8], [11, 12], [15, 16], [19, 20]];
     for (const [pip, tip] of tipPairs) {
       const dx = lm[tip].x - lm[pip].x;
@@ -273,7 +290,7 @@ class HandTracker {
       });
     }
 
-    return nodes; // Total: 21 core + 23 midpoints + 9 palm + 5 auras = 58 nodes!
+    return nodes;
   }
 
   updateTrail(handId, point) {
@@ -300,7 +317,6 @@ class HandTracker {
     const ringExt = isFingerExtended(16, 14);
     const pinkyExt = isFingerExtended(20, 18);
 
-    // Grab / Fist factor: average distance of fingertips to palm center
     const tips = [lm[8], lm[12], lm[16], lm[20]];
     let avgTipDistToPalm = 0;
     for (const t of tips) {
@@ -308,7 +324,6 @@ class HandTracker {
     }
     avgTipDistToPalm /= tips.length;
 
-    // Palm scale reference: wrist to middle MCP
     const handScale = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y) || 100;
     const grabFactor = avgTipDistToPalm / handScale;
     const isClosed = grabFactor < 0.68 || (!indexExt && !middleExt && !ringExt && !pinkyExt);
@@ -351,7 +366,6 @@ class HandTracker {
     return { x: sumX / indices.length, y: sumY / indices.length };
   }
 
-  // Ultra-Fast AR Renderer (zero ctx.shadowBlur for silky 60-144 FPS!)
   renderSkeleton() {
     const ctx = this.ctx;
     const connections = [
@@ -373,11 +387,10 @@ class HandTracker {
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      // 1. Cyber Wireframe Palm Mesh (if dense mode)
+      // 1. Cyber Wireframe Palm Mesh (56+ Points)
       if (this.pointDensity === 'dense') {
         ctx.beginPath();
         const palmCenter = hand.palmCenter;
-        // Triangulate palm to center
         for (const idx of [0, 1, 5, 9, 13, 17]) {
           ctx.moveTo(palmCenter.x, palmCenter.y);
           ctx.lineTo(lm[idx].x, lm[idx].y);
@@ -386,7 +399,6 @@ class HandTracker {
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // Biometric Nodes (56+ tracking points)
         for (let j = 0; j < hand.biometricNodes.length; j++) {
           const node = hand.biometricNodes[j];
           ctx.beginPath();
@@ -396,8 +408,7 @@ class HandTracker {
         }
       }
 
-      // 2. High-Performance Dual-Pass Neon Bones (No shadowBlur CPU cost!)
-      // Layer A: Wide translucent glow
+      // 2. High-Performance Dual-Pass Neon Bones
       ctx.beginPath();
       for (const [start, end] of connections) {
         ctx.moveTo(lm[start].x, lm[start].y);
@@ -407,7 +418,6 @@ class HandTracker {
       ctx.lineWidth = 8;
       ctx.stroke();
 
-      // Layer B: Sharp bright core line
       ctx.strokeStyle = mainColor;
       ctx.lineWidth = 3;
       ctx.stroke();
@@ -470,7 +480,7 @@ class HandTracker {
         ctx.fillText(label, topPt.x, boxY + 18);
       }
 
-      // 6. Fist / Catch Indicator Ring
+      // 6. Fist Indicator Ring
       if (hand.isClosed) {
         ctx.beginPath();
         ctx.arc(hand.palmCenter.x, hand.palmCenter.y, 45, 0, Math.PI * 2);

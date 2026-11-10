@@ -105,11 +105,11 @@
     </nav>
 
     <!-- Welcome Modal -->
-    <div id="modal-overlay">
+    <div id="modal-overlay" class="modal-backdrop">
       <div class="welcome-card glass-panel">
         <h1 class="welcome-title">AR HAND TRACKER 2.0</h1>
         <p class="welcome-desc">
-          Zoptymalizowana wersja 60+ FPS dla tabletu Huawei MatePad 12 X z biometryczną siatką i trybem rywalizacji multiplayer!
+          Zoptymalizowana wersja dla tabletu Huawei MatePad 12 X z 56+ punktami dłoni i rywalizacją multiplayer!
         </p>
         <div class="features-list">
           <div>🔬 <strong>56+ Punktów Biometrycznych</strong> – pełna siatka dłoni i stawów</div>
@@ -117,6 +117,9 @@
           <div>✊ <strong>Złap Gwiazdy</strong> – chwytaj gwiazdki zaciskając dłoń w pięść</div>
           <div>⚡ <strong>Zero Lagów (60+ FPS)</strong> – lekki silnik WebAssembly</div>
         </div>
+        
+        <div id="camera-error-msg" class="status-msg" style="display: none; color: #ff3366; margin-bottom: 15px;"></div>
+        
         <button id="btn-start-app" class="btn-start">URUCHOM KAMERĘ</button>
         <div id="loading-spinner" class="loader" style="display: none;"></div>
       </div>
