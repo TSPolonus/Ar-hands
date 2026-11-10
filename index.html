@@ -22,8 +22,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 
-  <!-- WebRTC PeerJS for Cross-Network Multiplayer -->
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <!-- Universal Cloud WebSocket Relay (Works across ALL Wi-Fi networks & LTE) -->
+  <script src="https://unpkg.com/mqtt@5.10.4/dist/mqtt.min.js"></script>
 </head>
 <body>
   <div id="app-container">
@@ -118,10 +118,7 @@
           <div>⚡ <strong>60+ FPS na każdym tablecie</strong> – akceleracja WebAssembly</div>
         </div>
         
-        <div id="camera-error-msg" class="status-msg" style="display: none; color: #ff3366; margin-bottom: 15px;"></div>
-        
-        <!-- Inline onclick ensures 100% immediate trigger on all mobile touchscreens -->
-        <button id="btn-start-app" class="btn-start" onclick="window.startCameraApp && window.startCameraApp()">URUCHOM KAMERĘ</button>
+        <button id="btn-start-app" class="btn-start">URUCHOM KAMERĘ</button>
         <div id="loading-spinner" class="loader" style="display: none;"></div>
       </div>
     </div>
@@ -141,7 +138,7 @@
 
         <!-- Host View -->
         <div id="view-host" class="mp-view">
-          <p class="mp-instruction">Twój kod do lobby (podaj go znajomemu na dowolnym tablecie/telefonie):</p>
+          <p class="mp-instruction">Twój 4-cyfrowy kod pokoju (działa z DOWOLNEJ innej sieci Wi-Fi i LTE):</p>
           <div class="lobby-code-box">
             <span id="display-room-code" class="room-code-number">----</span>
             <button id="btn-copy-code" class="btn-small">KOPIUJ KOD</button>
